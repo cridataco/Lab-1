@@ -1,116 +1,117 @@
-require('dotenv').config( {path: '../../.env'} );
+require("dotenv").config({ path: "../../.env" });
 
-const express = require('express');
-const axios = require('axios');
-const bodyParser = require('body-parser');
+const express = require("express");
+const axios = require("axios");
+const bodyParser = require("body-parser");
+const cors = require("cors");
 
 const app = express();
-const port = process.env.MIDDLEWAREPORT;
+const port = process.env.MIDDLEWAREPORT || 5001;
 
+app.use(cors());
+app.use(express.json());
 app.use(bodyParser.json());
-let servers = process.env.SERVERS ? process.env.SERVERS.split(',') : [];  // IPS de los pcs o instancias dockerizadas
+
+let servers = [];
 let requestCounts = new Map();
 let serverLogs = new Map();
 
-servers.forEach(server => {
-    requestCounts.set(server, 0);
-    serverLogs.set(server, []);
-});
-
-setInterval(() => {
-    requestCounts.forEach((value, key) => {
-        requestCounts.set(key, 0);
-    });
+setInterval(async () => {
+  console.log("servers", servers);
+  for (const server of servers) {
+    try {
+      const response = await axios.get(`${server}/requests`);
+      requestCounts.set(server, response.data);
+    } catch (error) {
+      console.error(`Error fetching request count from ${server}:`, error.message);
+    }
+  }
 }, 60000);
 
-
-app.use(async (req, res, next) => {  //Esto es el baleanceador de cargas con logs y contadores por server en el middleware
-    let leastConnectedServer = servers[0]; 
-    let minRequests = requestCounts.get(leastConnectedServer);
+const balanceLoad = async (req, res, next) => {
+  if (servers.length > 0) {
+    let leastConnectedServer = servers[0];
+    let minRequests = requestCounts.get(leastConnectedServer) || Infinity;
 
     for (const [server, count] of requestCounts) {
-        if (count < minRequests) {
-            leastConnectedServer = server;
-            minRequests = count;
-        }
+      if (count < minRequests) {
+        leastConnectedServer = server;
+        minRequests = count;
+      }
     }
 
-    let responseSent = false;
+    try {
+      const response = await axios({
+        method: req.method,
+        url: `${leastConnectedServer}${req.url}`,
+        data: req.body,
+        headers: req.headers,
+      });
 
-    for (let i = 0; i < servers.length; i++) {
-        try {
-            const response = await axios({
-                method: req.method,
-                url: `${leastConnectedServer}${req.url}`,
-                data: req.body,
-                headers: req.headers,
-            });
+      requestCounts.set(leastConnectedServer, requestCounts.get(leastConnectedServer) + 1);
 
-            requestCounts.set(leastConnectedServer, requestCounts.get(leastConnectedServer) + 1);
+      if (!serverLogs.has(leastConnectedServer)) {
+        serverLogs.set(leastConnectedServer, []);
+      }
 
-            serverLogs.get(leastConnectedServer).push({
-                timestamp: new Date(),
-                method: req.method,
-                url: req.url,
-                status: response.status,
-                payload: req.body,
-                headers: req.headers
-            });
+      serverLogs.get(leastConnectedServer).push({
+        timestamp: new Date(),
+        method: req.method,
+        url: req.url,
+        status: response.status,
+        payload: req.body,
+        headers: req.headers,
+      });
 
-            res.send(response.data);
-            responseSent = true;
-            break; 
-        } catch (error) {
-            serverLogs.get(leastConnectedServer).push({
-                timestamp: new Date(),
-                method: req.method,
-                url: req.url,
-                status: error.response ? error.response.status : 500,
-                payload: req.body,
-                headers: req.headers,
-                error: error.message
-            });
+      res.send(response.data);
+    } catch (error) {
+      if (!serverLogs.has(leastConnectedServer)) {
+        serverLogs.set(leastConnectedServer, []);
+      }
 
-            leastConnectedServer = servers[(servers.indexOf(leastConnectedServer) + 1) % servers.length];
-        }
+      serverLogs.get(leastConnectedServer).push({
+        timestamp: new Date(),
+        method: req.method,
+        url: req.url,
+        status: error.response ? error.response.status : 500,
+        payload: req.body,
+        headers: req.headers,
+        error: error.message,
+      });
+
+      res.status(503).send("No servers available");
     }
+  } else {
+    res.status(503).send("No servers available");
+  }
+};
 
-    if (!responseSent) {
-        res.status(503).send('No servers available');
-    }
-});
+app.use('/api', balanceLoad);
 
-app.post('/register', (req, res) => { // Ruta para registrar severs desde el discovery server
-    const { server } = req.body;
-    if (!servers.includes(server)) {
-        servers.push(server);
-        requestCounts.set(server, 0);
-        serverLogs.set(server, []);
-    }
+app.post("/register", (req, res) => {
+  const { server } = req.body;
+  console.log(`Registering server: ${server}`);
+  if (!servers.includes(server)) {
+    servers.push(server);
+    requestCounts.set(server, 0);
+    serverLogs.set(server, []);
+    console.log(`Server registered: ${server}`);
     res.sendStatus(200);
+  } else {
+    console.log(`Server already registered: ${server}`);
+    res.sendStatus(200);
+  }
 });
 
-app.post('/tokens', async (req, res) => { 
-    const { data } = req.body;
-    console.log(`Text received mid: ${data}`);
-    try{
-        const res = await axios.post(`http://${server}/register`, { data });
-        res.sendStatus(200);
-    }catch(error){
-        console.error(error);
-        res.status(500).send(error.message);
-    }
-});
-
-app.get('/monitor', (req, res) => {  // Se accede a esta ruta para obtener el estado de los servers y graficarlo en el frontend
-    const serverData = servers.map(server => ({
-        server,
-        requests: requestCounts.get(server),
-        logs: serverLogs.get(server)
-    }));
-    res.json(serverData);
+app.get("/monitor", (req, res) => {
+  const serverData = servers.map((server) => ({
+    server,
+    requests: requestCounts.get(server),
+    logs: serverLogs.get(server),
+  }));
+  res.json(serverData);
 });
 
 app.listen(port, () => {
-    console.log(`Middleware running on port ${port}`);
+  console.log(`Middleware running on port ${port}`);
 });

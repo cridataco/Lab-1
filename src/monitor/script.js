@@ -1,23 +1,60 @@
 document.addEventListener('DOMContentLoaded', function() {
     const refreshButton = document.getElementById('refreshButton');
+    const serverData = document.getElementById('serverData');
+
     refreshButton.addEventListener('click', () => {
-        fetch('http://localhost:5001/tokens', { 
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }, body: JSON.stringify({ text: 'this is america' })  
-        })
-            .then(response => response.json())
+        fetch('http://localhost:5000/monitor')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
-                // Actualiza el contenido del div con los datos del servidor
-                serverData.innerHTML = `<p>Tokens registrados: ${data.join(', ')}</p>`;
+                serverData.innerHTML = ''; // Clear existing data
+                data.forEach(server => {
+                    const serverDiv = document.createElement('div');
+                    serverDiv.classList.add('server');
+
+                    const serverTitle = document.createElement('h2');
+                    serverTitle.textContent = `Server: ${server.server}`;
+                    serverDiv.appendChild(serverTitle);
+
+                    const requestCount = document.createElement('p');
+                    requestCount.textContent = `Requests: ${server.requests}`;
+                    serverDiv.appendChild(requestCount);
+
+                    const logsDiv = document.createElement('div');
+                    logsDiv.classList.add('logs');
+                    server.logs.forEach(log => {
+                        const logDiv = document.createElement('div');
+                        logDiv.classList.add('log');
+
+                        const timestamp = document.createElement('span');
+                        timestamp.classList.add('timestamp');
+                        timestamp.textContent = new Date(log.timestamp).toLocaleString();
+                        logDiv.appendChild(timestamp);
+
+                        const details = document.createElement('div');
+                        details.classList.add('details');
+                        details.textContent = `Method: ${log.method}, URL: ${log.url}, Status: ${log.status}`;
+                        logDiv.appendChild(details);
+
+                        logsDiv.appendChild(logDiv);
+                    });
+
+                    serverDiv.appendChild(logsDiv);
+                    serverData.appendChild(serverDiv);
+                });
             })
             .catch(error => {
                 console.error('Error fetching data:', error);
-                serverData.innerHTML = `<p style="color: red;">Error fetching data</p>`;
+                serverData.innerHTML = `<p style="color: red;">Error fetching data: ${error.message}</p>`;
             });
     });
 });
+
+
 
 
 // document.getElementById('refreshButton').addEventListener('click', fetchServerData);
