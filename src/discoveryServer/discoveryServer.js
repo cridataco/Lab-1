@@ -12,9 +12,15 @@ app.post('/register', (req, res) => {
     const { server } = req.body;
     if (!servers.includes(server)) {
         servers.push(server);
-        axios.post('http://localhost:5000/register', { server })
-            .then(() => res.sendStatus(200))
-            .catch(error => res.status(500).send(error.message));
+        axios.post('http://localhost:5001/register', { server: server })
+            .then(() => {
+                console.log(`Successfully registered ${server} with Monitor Server (5001)`);
+                res.sendStatus(200);
+            })
+            .catch((error) => {
+                console.error(`Failed to register ${server} with Monitor Server:`, error.message);
+                res.status(500).send(`Error registering with Monitor Server: ${error.message}`);
+            });
     } else {
         res.sendStatus(200);
     }

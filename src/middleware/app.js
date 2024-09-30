@@ -1,4 +1,4 @@
-require('dotenv').config(); // Carga las variables de entorno desde el archivo .env
+require('dotenv').config( {path: '../../.env'} );
 
 const express = require('express');
 const axios = require('axios');
@@ -7,8 +7,7 @@ const bodyParser = require('body-parser');
 const app = express();
 const port = process.env.MIDDLEWAREPORT;
 
-app.use(bodyParser.json()); // Parsear las solicitudes JSON
-
+app.use(bodyParser.json());
 let servers = process.env.SERVERS ? process.env.SERVERS.split(',') : [];  // IPS de los pcs o instancias dockerizadas
 let requestCounts = new Map();
 let serverLogs = new Map();
@@ -89,6 +88,18 @@ app.post('/register', (req, res) => { // Ruta para registrar severs desde el dis
         serverLogs.set(server, []);
     }
     res.sendStatus(200);
+});
+
+app.post('/tokens', async (req, res) => { 
+    const { data } = req.body;
+    console.log(`Text received mid: ${data}`);
+    try{
+        const res = await axios.post(`http://${server}/register`, { data });
+        res.sendStatus(200);
+    }catch(error){
+        console.error(error);
+        res.status(500).send(error.message);
+    }
 });
 
 app.get('/monitor', (req, res) => {  // Se accede a esta ruta para obtener el estado de los servers y graficarlo en el frontend
