@@ -8,6 +8,6 @@ RUN npm install
 
 COPY . .
 
-EXPOSE 8014
+EXPOSE 5000
 
-CMD ["node", "/app/instancia.js"]
+CMD ["node", "/app/discoveryServer.js"]

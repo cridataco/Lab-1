@@ -15,7 +15,7 @@ app.post('/register', (req, res) => {
     console.log(`Registering server: ${server}`);
     if (!servers.includes(server)) {
         servers.push(server);
-        axios.post('http://localhost:5001/register', { server: server })
+        axios.post('http://172.22.144.1:5001/register', { server: server })
             .then(() => {
                 console.log(`Successfully registered ${server} with Monitor Server`);
                 res.sendStatus(200);

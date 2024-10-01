@@ -61,6 +61,7 @@ const balanceLoad = async (req, res, next) => {
     );
 
     try {
+      console.log(`Gabriel es pvto${leastConnectedServer}${req.url}`)
       const response = await axios({
         method: req.method,
         url: `${leastConnectedServer}${req.url}`,

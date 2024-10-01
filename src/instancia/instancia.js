@@ -1,10 +1,11 @@
+require("dotenv").config();
 const os = require('os');
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 
 const app = express();
-const port = process.env.PORT || 8012;
+const port = process.env.BACKEND_PORT || 8014;
 
 let requestsCount = 0;
 
@@ -34,15 +35,16 @@ app.get('/health', (req, res) => {
 
 setInterval(() => {
     console.log(`Resetting request count from ${requestsCount} to 0`);
+    console.log(`hostname ${os.hostname()}`);
+    console.log(`ip ${getContainerIP()}`);
     requestsCount = 0;
-}, 60000);
+}, 2000);
 
 function getContainerIP() {
     const networkInterfaces = os.networkInterfaces();
     for (const interfaceName in networkInterfaces) {
         const interfaces = networkInterfaces[interfaceName];
         for (const iface of interfaces) {
-            // Filtrar por IPv4 y excluir direcciones internas (127.0.0.1)
             if (iface.family === 'IPv4' && !iface.internal) {
                 return iface.address;
             }
@@ -53,7 +55,7 @@ function getContainerIP() {
 app.listen(port, () => {
     const containerIP = getContainerIP();
     console.log(`Instance running on port ${port}`);
-    axios.post('http://192.168.1.14:5000/register', { server: `http://0.0.0.0:${port}` })
+    axios.post('http://discovery-server:5000/register', { server: `http://127.0.0.1:${port}` })
         .then(() => console.log(`Registered with Discovery Server`))
         .catch(error => console.error(`Failed to register: ${error.message}`));
 });
