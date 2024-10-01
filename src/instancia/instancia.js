@@ -28,6 +28,10 @@ app.get('/requests', (req, res) => {
     res.json(requestsCount);
 });
 
+app.get('/health', (req, res) => {
+    res.send('OK');
+});
+
 setInterval(() => {
     console.log(`Resetting request count from ${requestsCount} to 0`);
     requestsCount = 0;

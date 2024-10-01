@@ -17,9 +17,11 @@ app.use(bodyParser.json());
 let servers = [];
 let requestCounts = new Map();
 let serverLogs = new Map();
+const serverHealth = new Map();
 
 setInterval(async () => {
   console.log("servers", servers);
+  console.log(serverHealth);
   for (const server of servers) {
     try {
       const response = await axios.get(`${server}/requests`);
@@ -28,31 +30,46 @@ setInterval(async () => {
       console.error(`Error fetching request count from ${server}:`, error.message);
     }
   }
-}, 60000);
+}, 2000);
+
+const MAX_RETRIES = 3;
+const HEALTH_CHECK_INTERVAL = 30000;
+
+const checkServerHealth = async (server) => {
+  try {
+    await axios.get(`${server}/health`, { timeout: 5000 });
+    serverHealth.set(server, true);
+  } catch (error) {
+    serverHealth.set(server, false);
+  }
+};
+
+setInterval(() => {
+  servers.forEach(checkServerHealth);
+}, HEALTH_CHECK_INTERVAL);
 
 const balanceLoad = async (req, res, next) => {
-  if (servers.length > 0) {
-    let leastConnectedServer = servers[0];
-    let minRequests = requestCounts.get(leastConnectedServer) || Infinity;
+  const availableServers = servers.filter(server => serverHealth.get(server) !== false);
+  
+  if (availableServers.length === 0) {
+    return res.status(503).send("No servers available");
+  }
 
-    for (const [server, count] of requestCounts) {
-      if (count < minRequests) {
-        leastConnectedServer = server;
-        minRequests = count;
-      }
-    }
-    console.log(`req.url: ${leastConnectedServer}${req.url}`);
-    console.log(`req.body: ${req.body}`);
-    console.log(`req.method: ${req.method}`);
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const leastConnectedServer = availableServers.reduce((min, server) => 
+      (requestCounts.get(server) || 0) < (requestCounts.get(min) || 0) ? server : min
+    );
+
     try {
       const response = await axios({
         method: req.method,
         url: `${leastConnectedServer}${req.url}`,
         data: req.body,
         headers: req.headers,
+        timeout: 10000
       });
 
-      requestCounts.set(leastConnectedServer, requestCounts.get(leastConnectedServer) + 1);
+      requestCounts.set(leastConnectedServer, (requestCounts.get(leastConnectedServer) || 0) + 1);
 
       if (!serverLogs.has(leastConnectedServer)) {
         serverLogs.set(leastConnectedServer, []);
@@ -67,8 +84,10 @@ const balanceLoad = async (req, res, next) => {
         headers: req.headers,
       });
 
-      res.send(response.data);
+      return res.send(response.data);
     } catch (error) {
+      console.error(`Attempt ${attempt + 1} failed for server ${leastConnectedServer}: ${error.message}`);
+      
       if (!serverLogs.has(leastConnectedServer)) {
         serverLogs.set(leastConnectedServer, []);
       }
@@ -83,11 +102,20 @@ const balanceLoad = async (req, res, next) => {
         error: error.message,
       });
 
-      res.status(503).send("No servers available");
+      serverHealth.set(leastConnectedServer, false);
+      const index = availableServers.indexOf(leastConnectedServer);
+      if (index > -1) {
+        availableServers.splice(index, 1);
+      }
+
+      if (availableServers.length === 0) {
+        break;
+      }
     }
-  } else {
-    res.status(503).send("No servers available");
   }
+  console.log(serverHealth);
+  // Si todos los intentos fallan
+  res.status(503).send("No servers available");
 };
 
 app.use('/api', balanceLoad);
