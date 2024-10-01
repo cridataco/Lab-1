@@ -22,7 +22,7 @@ app.post('/register', (req, res) => {
             })
             .catch((error) => {
                 console.error(`Failed to register ${server} with Monitor Server:`, error.message);
-               // res.status(503).send(`Error registering with Monitor Server: ${error.message}`);
+                res.status(503).send(`Error registering with Monitor Server: ${error.message}`);
             });
     } else {
         console.log(`Server already registered: ${server}`);

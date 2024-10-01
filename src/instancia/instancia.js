@@ -23,6 +23,11 @@ app.get('/requests', (req, res) => {
     res.json(requestsCount);
 });
 
+setInterval(() => {
+    console.log(`Resetting request count from ${requestsCount} to 0`);
+    requestsCount = 0;
+}, 60000);
+
 app.listen(port, () => {
     console.log(`Instance running on port ${port}`);
     axios.post('http://localhost:5000/register', { server: `http://localhost:${port}` })

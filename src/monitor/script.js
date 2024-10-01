@@ -46,6 +46,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     serverDiv.appendChild(logsDiv);
                     serverData.appendChild(serverDiv);
 
+                    // Create canvas for the chart
+                    const chartCanvas = document.createElement('canvas');
+                    chartCanvas.id = `chart-${server.server}`;
+                    serverDiv.appendChild(chartCanvas);
+
+                    console.log(`Creating chart for ${chartCanvas.id}`);
+
                     // Create the chart for the request logs
                     createChart(server.logs, `chart-${server.server}`);
                 });
@@ -57,7 +64,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function createChart(logs, chartId) {
-        const ctx = document.getElementById(chartId).getContext('2d');
+        const canvas = document.getElementById(chartId);
+        if (!canvas) {
+            console.error(`Canvas with id ${chartId} not found`);
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
         const timestamps = logs.map(log => new Date(log.timestamp).toLocaleTimeString());
         const requestCounts = logs.map(log => log.status);
 
