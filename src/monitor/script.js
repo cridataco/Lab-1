@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     const refreshButton = document.getElementById('refreshButton');
     const serverData = document.getElementById('serverData');
+    const serverTokens = document.getElementById('serverTokens');
 
     refreshButton.addEventListener('click', () => {
         fetch('http://localhost:5001/monitor')
@@ -60,6 +61,38 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 console.error('Error fetching data:', error);
                 serverData.innerHTML = `<p style="color: red;">Error fetching data: ${error.message}</p>`;
+            });
+    });
+
+    sendRequest.addEventListener('click', () => {
+        const data = this.getElementById('requestData');
+        console.log(data.value);
+        fetch('http://localhost:5001/api/tokens', {
+                body: data.value, 
+                method: 'POST'}
+            )
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(data);
+                serverTokens.innerHTML = ''; 
+        
+                const serverToken = document.createElement('div');
+                serverTokens.classList.add('server');
+                
+                const requestCount = document.createElement('p');
+                requestCount.textContent = `Tokens: ${data.tokens}`;
+                
+                serverTokens.appendChild(requestCount);
+                serverTokens.appendChild(serverToken);
+            })
+            .catch(error => {
+                console.error('Error fetching data:', error);
+                serverTokens.innerHTML = `<p style="color: red;">Error fetching data: ${error.message}</p>`;
             });
     });
 

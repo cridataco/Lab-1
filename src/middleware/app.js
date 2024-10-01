@@ -9,7 +9,9 @@ const app = express();
 const port = process.env.MIDDLEWAREPORT || 5001;
 
 app.use(cors());
+app.use(express.text());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 let servers = [];
@@ -39,7 +41,9 @@ const balanceLoad = async (req, res, next) => {
         minRequests = count;
       }
     }
-
+    console.log(`req.url: ${leastConnectedServer}${req.url}`);
+    console.log(`req.body: ${req.body}`);
+    console.log(`req.method: ${req.method}`);
     try {
       const response = await axios({
         method: req.method,
@@ -110,6 +114,18 @@ app.get("/monitor", (req, res) => {
     logs: serverLogs.get(server),
   }));
   res.json(serverData);
+});
+
+app.post('/tokens', async (req, res) => { 
+  const { data } = req.body;
+  console.log(`Text received mid: ${data}`);
+  try{
+      const res = await axios.post(`http://${server}/register`, { data });
+      res.sendStatus(200);
+  }catch(error){
+      console.error(error);
+      res.status(500).send(error.message);
+  }
 });
 
 app.listen(port, () => {
